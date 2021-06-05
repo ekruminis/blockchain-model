@@ -1,6 +1,5 @@
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOError;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Random;
@@ -15,10 +14,10 @@ public class Game {
     float importance;
     double net_state;
     double min_fee = 0.00000001;
-    double fee_probability = 3895410;
-    double exchange_rate = 0.00006196;
-    long block_size = 8400;
-    long mempool_size = mempool.size();
+    double fee_probability = 7916381.889431873;
+    double exchange_rate = 0.00024490;
+    double block_size = 4200;
+    double mempool_size = mempool.size();
     int block_interval = 600;
     double patience;
 
@@ -28,7 +27,7 @@ public class Game {
 
     public void genTransaction(int number) {
         while(number > 0) {
-            double x = genAmount();
+            double x = 5;
             float w = calcWorth(x);
             long d = globalDate;
             Transaction tx = new Transaction(id, x, w, d);
@@ -38,8 +37,12 @@ public class Game {
         }
     }
 
+    public double calcProb(double x) {
+        return Math.pow(net_state/0.00033984, (1-(block_size/x)));
+    }
+
     public double genAmount() {
-        return Math.abs(new Random().nextGaussian() * 4 + 4);
+        return Math.abs(new Random().nextGaussian()*Math.exp(1)+5.75);
     }
 
     public double calcFee(Transaction x) {
@@ -53,11 +56,10 @@ public class Game {
     }
 
     public float calcWorth(double tx) {
-        float w = 0;
+
         double v = new Random().nextDouble();
 
-        w = (float) (v / (v + (Math.pow(Math.exp(1), -(tx * v)))));
-        return w;
+        return (float)v;
     }
 
     public float calcUtility(Transaction x) {
@@ -75,21 +77,42 @@ public class Game {
         return net_state;
     }
 
+    public double calcNetworkState(double x) {
+        mempool_size = mempool.size();
+        net_state = (x/block_size/exchange_rate);
+        return net_state;
+    }
+
     public void play(int sets, int incomingTx) {
         LinkedList totalFees = new LinkedList();
         LinkedList totalUtility = new LinkedList();
         LinkedList totalMempool = new LinkedList();
+        LinkedList totalNetUtil = new LinkedList();
+        LinkedList totalWorth = new LinkedList();
 
         int plays = sets;
 
+        genTransaction(incomingTx);
+
         while (plays != 0) {
             System.out.println("GAME STARTING: " + (globalDate / 600));
+
             genTransaction(incomingTx);
+
+            double aaa = 0;
+
+            for (Transaction t : mempool) {
+                aaa += t.getWorth();
+
+            }
+
+            System.out.println("avg worth = " + (aaa/mempool.size()));
 
             LinkedList<Transaction> players = (LinkedList<Transaction>) mempool.clone();
             LinkedList<Transaction> winners = new LinkedList<>();
 
-            double nt = calcNetworkState();
+            calcNetworkState();
+            System.out.println("net: " + net_state);
 
             while (losers.size() != 0 && winners.size() < block_size) {
                 winners.addFirst(losers.getLast());
@@ -124,26 +147,7 @@ public class Game {
                     players.remove(p);
                     losers.add(p);
                 }
-
-//            System.out.println("net state: " + nt);
-//            System.out.println(p.toString());
-//            System.out.println("min fee: " + min_fee);
-//            System.out.println("full: " + (winners.size() >= block_size));
-//            System.out.println("2nd: " + (winners.getFirst().getFee() == min_fee));
-//            System.out.println("winners : " + winners.toString());
-
             }
-
-            //System.out.println("_________");
-            //System.out.println("-WINNERS-");
-            //winners.forEach(t -> System.out.println(t.toString()));
-            //System.out.println(winners.getFirst().toString());
-            //System.out.println(winners.getLast().toString());
-
-            //System.out.println("__________");
-            //System.out.println("--LOSERS--");
-            //losers.forEach(t -> System.out.println(t.toString()));
-            //System.out.println(losers.getLast());
 
             for (Transaction tx : winners) {
                 mempool.removeIf(t -> t.getId() == tx.getId());
@@ -151,22 +155,31 @@ public class Game {
 
             float avgUtility = 0;
             double avgFee = 0;
+            double netUtil = 0;
+
 
             for (Transaction t : winners) {
                 avgUtility += calcUtility(t);
                 avgFee += t.getFee();
             }
 
-
             globalDate += 600;
+
+            for (Transaction t : mempool) {
+                netUtil += calcUtility(t);
+            }
 
             System.out.println("mempool size:   " + mempool.size());
             System.out.println("avg utility:    " + (avgUtility / block_size));
             System.out.println("avg fee:        " + (avgFee / block_size));
+            System.out.println("net utility:    " + (netUtil/mempool.size()));
+
 
             totalFees.add(avgFee / block_size);
             totalUtility.add(avgUtility / block_size);
             totalMempool.add(mempool.size());
+            totalNetUtil.add(netUtil/mempool.size());
+
             plays--;
         }
 
@@ -210,11 +223,51 @@ public class Game {
                     e.printStackTrace();
                 }
             });
+
+            myWriter.write("net util:    ");
+            myWriter.write(System.lineSeparator());
+            totalNetUtil.forEach((n) -> {
+                try {
+                    myWriter.write(String.format("%.12f", n));
+                    myWriter.write(System.lineSeparator());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+
+            myWriter.write("W worth:    ");
+            myWriter.write(System.lineSeparator());
+            totalWorth.forEach((n) -> {
+                try {
+                    myWriter.write(String.format("%.12f", n));
+                    myWriter.write(System.lineSeparator());
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+
             myWriter.close();
         }
         catch(IOException e) {
             System.out.println("An error occurred.");
             e.printStackTrace();
         }
+    }
+
+    public double maxFee(double blockSize, double mem) {
+        double fee = 0.00000001;
+        double net = (mem/blockSize/exchange_rate);
+        boolean go = true;
+
+        while(go) {
+            if(Math.pow(net/fee, 1) >= fee_probability) {
+                fee += 0.00000001;
+            }
+            else {
+                go = false;
+            }
+        }
+
+        return fee;
     }
 }

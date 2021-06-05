@@ -4,7 +4,7 @@ public class Transaction {
     String payer;
     double tx_amount;
     double fee;
-    float worth;
+    double worth;
     int tx_size;
     long date;
 
@@ -45,7 +45,7 @@ public class Transaction {
         return tx_amount;
     }
 
-    public float getWorth() {
+    public double getWorth() {
         return worth;
     }
 
